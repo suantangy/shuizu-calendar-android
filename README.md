@@ -4,7 +4,7 @@
 
 - 包名：`com.suantangyu.shuizucalendar`
 - 应用名：水族日历
-- 版本：1.1.0（versionCode 2）
+- 版本：1.2.0（versionCode 3）
 
 ## 怎么做到的
 
@@ -12,6 +12,7 @@
 - 网页文件打在 APK 的 `assets/web/` 里（`index.html` + `calendar-data.zip` 约 4.3MB），首次启动解压到内部存储，WebView 用 WebViewAssetLoader 本地加载。
 - 页面里的 `fetch("calendar-data/2026-08.json")` 读的也是本地文件，全程没有任何网络请求，所以 **不需要 INTERNET 权限，断网、飞行模式都能用**。
 - 主题（`cal-theme`）存在 WebView 的 localStorage 里，和网页版一样。
+- 沉浸式：内容延伸到系统栏之下，状态栏/导航栏透明；壳把真实状态栏高度补进页面顶部，卡片不被时间电量压住；状态栏图标颜色跟随页面主题。
 
 ## 结构
 
