@@ -162,12 +162,16 @@ private fun CalendarApp(
         ?: month?.days?.firstOrNull { it.date == today.key() }
         ?: month?.days?.firstOrNull()
 
+    // 局部 val 才能 smart cast（month 是 delegated property，分支里无法自动收窄）
+    val currentMonth = month
+    val currentDay = selectedDay
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 渐变背景（固定，不跟随滚动）
         Canvas(modifier = Modifier.fillMaxSize()) {
             for (brush in backgroundBrushes(colors, size)) drawRect(brush = brush)
         }
-        if (!ready || month == null || selectedDay == null) {
+        if (!ready || currentMonth == null || currentDay == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -186,10 +190,10 @@ private fun CalendarApp(
                     .navigationBarsPadding(),
             ) {
                 TopBar(colors = colors, dark = dark, onToggleTheme = { dark = !dark })
-                DetailCard(colors = colors, day = selectedDay)
+                DetailCard(colors = colors, day = currentDay)
                 CalendarCard(
                     colors = colors,
-                    month = month,
+                    month = currentMonth,
                     todayKey = today.key(),
                     selectedDate = selectedDate,
                     onSelectDay = { selectedDate = it.date },
