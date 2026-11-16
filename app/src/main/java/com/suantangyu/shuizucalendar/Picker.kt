@@ -228,6 +228,7 @@ fun DatePickerDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .widthIn(max = 168.dp)
+                                .height(34.dp)
                                 .border(1.5.dp, PICKER_BLUE, RoundedCornerShape(980.dp))
                                 .clip(RoundedCornerShape(980.dp))
                                 .background(Color.White),
