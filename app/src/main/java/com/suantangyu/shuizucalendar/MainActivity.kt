@@ -1,8 +1,10 @@
 package com.suantangyu.shuizucalendar
 
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.AssetManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -30,7 +33,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
@@ -71,7 +78,8 @@ import kotlin.math.sin
  *
  * 数据仍是原包 1212 个月 JSON：首次启动从 assets 解压到内部存储，
  * 主界面（详情卡 + 月历格子）全部读这份 JSON；选择器的农历模式用
- * LunarCalendar 的换算表（与网页同款）。全程不联网，无 INTERNET 权限。
+ * LunarCalendar 的换算表（与网页同款）。平时不联网，只有用户点页脚
+ * 「检查更新」时才联网问一次 GitHub（UpdateCheck.kt）。
  *
  * 沉浸式：内容延伸到系统栏之下，系统栏透明；状态栏图标颜色跟随主题。
  */
@@ -137,10 +145,31 @@ private fun CalendarApp(
     var month by remember { mutableStateOf<MonthData?>(null) }
     var selectedDate by remember { mutableStateOf(beijingToday().key()) }
     var pickerOpen by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
 
     val repo = remember { MonthRepository(File(filesDir, "web")) }
     val today = remember { beijingToday() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val currentVersion = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+        } catch (e: Exception) {
+            "?"
+        }
+    }
+
+    fun runUpdateCheck() {
+        if (checking) return
+        checking = true
+        updateResult = null
+        scope.launch {
+            val res = withContext(Dispatchers.IO) { checkForUpdate(currentVersion) }
+            checking = false
+            updateResult = res
+        }
+    }
 
     suspend fun loadMonth(year: Int, monthNum: Int): MonthData? =
         withContext(Dispatchers.IO) { repo.load(year, monthNum) }
@@ -203,15 +232,26 @@ private fun CalendarApp(
                         scope.launch { goTo(today.year, today.monthValue, today.key()) }
                     },
                 )
-                Text(
-                    text = "2000–2100 · calendar-data · suantangyu",
-                    fontSize = 11.2.sp,
-                    color = colors.muted.copy(alpha = 0.75f),
-                    textAlign = TextAlign.Center,
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp),
-                )
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "2000–2100 · calendar-data · suantangyu · ",
+                        fontSize = 11.2.sp,
+                        color = colors.muted.copy(alpha = 0.75f),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "检查更新",
+                        fontSize = 11.2.sp,
+                        color = colors.blue,
+                        modifier = Modifier.clickable(enabled = !checking) { runUpdateCheck() },
+                    )
+                }
             }
         }
         if (pickerOpen) {
@@ -224,6 +264,20 @@ private fun CalendarApp(
                     scope.launch {
                         goTo(y, m, LocalDate.of(y, m, d).key())
                     }
+                },
+            )
+        }
+        if (checking || updateResult != null) {
+            UpdateDialog(
+                colors = colors,
+                checking = checking,
+                result = updateResult,
+                currentVersion = currentVersion,
+                onDismiss = { updateResult = null },
+                onRetry = { runUpdateCheck() },
+                onDownload = { url ->
+                    updateResult = null
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                 },
             )
         }
@@ -774,5 +828,98 @@ private fun DayCell(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+/** 检查更新的结果弹窗。checking 时不可点外面关，等结果回来再关。 */
+@Composable
+private fun UpdateDialog(
+    colors: CalColors,
+    checking: Boolean,
+    result: UpdateResult?,
+    currentVersion: String,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+    onDownload: (String) -> Unit,
+) {
+    if (checking) {
+        AlertDialog(
+            onDismissRequest = { /* 检查中不让关 */ },
+            confirmButton = {},
+            title = { Text(text = "检查更新", fontSize = 18.sp, color = colors.text) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = colors.blue,
+                    )
+                    Text(
+                        text = "正在检查更新…",
+                        fontSize = 15.sp,
+                        color = colors.text,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+            },
+        )
+        return
+    }
+    when (val r = result) {
+        is UpdateResult.Available -> AlertDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(onClick = { onDownload(r.url) }) {
+                    Text(text = "去下载", color = colors.blue)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(text = "以后再说", color = colors.muted)
+                }
+            },
+            title = { Text(text = "发现新版本", fontSize = 18.sp, color = colors.text) },
+            text = {
+                Text(
+                    text = "最新版本 v${r.remoteVersion}，当前版本 v$currentVersion",
+                    fontSize = 15.sp,
+                    color = colors.text,
+                )
+            },
+        )
+        is UpdateResult.UpToDate -> AlertDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(text = "确定", color = colors.blue)
+                }
+            },
+            title = { Text(text = "已是最新版本", fontSize = 18.sp, color = colors.text) },
+            text = {
+                Text(
+                    text = "当前版本 v${r.version} 已是最新",
+                    fontSize = 15.sp,
+                    color = colors.text,
+                )
+            },
+        )
+        is UpdateResult.Failed -> AlertDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(onClick = onRetry) {
+                    Text(text = "重试", color = colors.blue)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(text = "取消", color = colors.muted)
+                }
+            },
+            title = { Text(text = "检查失败", fontSize = 18.sp, color = colors.text) },
+            text = {
+                Text(text = r.reason, fontSize = 15.sp, color = colors.text)
+            },
+        )
+        null -> Unit
     }
 }
