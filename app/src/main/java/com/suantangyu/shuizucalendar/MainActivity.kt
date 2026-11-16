@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -689,7 +690,7 @@ private fun CalendarCard(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(54.dp),
+                                    .defaultMinSize(minHeight = 54.dp),
                             )
                         } else {
                             DayCell(
@@ -733,7 +734,7 @@ private fun DayCell(
     }
     Box(
         modifier = modifier
-            .height(54.dp)
+            .defaultMinSize(minHeight = 54.dp)
             .padding(start = 1.dp, end = 1.dp, top = 4.dp, bottom = 6.dp)
             .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() },
